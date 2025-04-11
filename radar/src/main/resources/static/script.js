@@ -61,11 +61,21 @@ function drawDetection(angle, distance) {
 // Simula dados vindo do backend (0–180 graus)
 let angle = 0;
 let direction = 1;
+async function fetchRadarData() {
+  try {
+    const response = await fetch('/medidas');
+    if (!response.ok) throw new Error("Erro na resposta");
 
-setInterval(() => {
-  const distance = Math.random() * maxRadius;
-  drawDetection(angle, distance);
+    const data = await response.json();
+    const angle = data.angle;
+    const distance = data.distance;
 
-  angle += direction * 2;
-  if (angle >= 180 || angle <= 0) direction *= -1;
-}, 100);
+    drawDetection(angle, distance); // usa os dados recebidos para desenhar
+
+  } catch (error) {
+    console.error("Erro ao buscar dados do radar:", error);
+  }
+}
+
+// Atualiza a cada 200ms (ou como preferir)
+setInterval(fetchRadarData, 200);
