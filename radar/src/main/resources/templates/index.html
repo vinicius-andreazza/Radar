@@ -1,102 +1,307 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-
-<head>
-  <meta charset="UTF-8">
-  <title>Radar Automatizado</title>
-  <link rel="stylesheet" th:href="@{style.css}">
-</head>
-
-<body>
-  <h1>Radar Automatizado</h1>
-  <canvas id="radarCanvas" width="1600" height="400"></canvas>
-
-
-  <script>
-    alert("Iniciando")
-    const canvas = document.getElementById('radarCanvas');
-    const ctx = canvas.getContext('2d');
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height; // Base inferior do canvas
-    const maxRadius = canvas.width / 2;
-
-    function drawRadar() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Círculos concêntricos (semicírculo)
-      ctx.strokeStyle = '#0f0';
-      ctx.lineWidth = 1;
-
-      for (let r = 50; r <= maxRadius; r += 50) {
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, r, Math.PI, 0); // semicírculo
-        ctx.stroke();
+<html lang="pt-br" xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Radar Automatizado - SENAI</title>
+    <style>
+      * {
+        transition: all 1.5s ease-in-out;
       }
 
-      // Linhas radiais de 0 a 180 graus
-      for (let angle = 0; angle <= 180; angle += 15) {
-        const rad = angle * Math.PI / 180;
-        const x = centerX + maxRadius * Math.cos(rad);
-        const y = centerY - maxRadius * Math.sin(rad);
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
+      :root {
+        --senai-blue: #003865;
+        --senai-light-blue: #0078d4;
+        --senai-white: #ffffff;
+        --background-dark: #0a0a0a;
+        --text-light: #f0f0f0;
       }
-    }
 
-    // Converte polar (0–180°) para cartesianas no semicírculo
-    function polarToCartesian(angleDeg, distance) {
-      const angleRad = angleDeg * Math.PI / 180;
-      const x = centerX + distance * Math.cos(angleRad);
-      const y = centerY - distance * Math.sin(angleRad);
-      return { x, y };
-    }
-
-    // Desenha a detecção
-    function drawDetection(angle, distance) {
-      drawRadar();
-
-      const normalizedDistance = Math.min(distance, maxRadius);
-      const { x, y } = polarToCartesian(angle, normalizedDistance);
-
-      // Linha de varredura
-      ctx.strokeStyle = 'lime';
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-
-      // Ponto detectado
-      ctx.fillStyle = 'red';
-      ctx.beginPath();
-      ctx.arc(x, y, 5, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-
-    // Simula dados vindo do backend (0–180 graus)
-    let angle = 0;
-    let direction = 1;
-    async function fetchRadarData() {
-      try {
-        const response = await fetch('/medidas');
-        if (!response.ok) throw new Error("Erro na resposta");
-
-        const data = await response.json();
-        const angle = data.angle;
-        const distance = data.distance;
-        console.log(angle,"/",distance)
-        drawDetection(angle, distance); // usa os dados recebidos para desenhar
-
-      } catch (error) {
-        console.error("Erro ao buscar dados do radar:", error);
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background-color: var(--background-dark);
+        color: var(--text-light);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
       }
-    }
 
-    // Atualiza a cada 200ms (ou como preferir)
-    setInterval(fetchRadarData, 200);
+      h1 {
+        color: var(--senai-light-blue);
+        margin-bottom: 10px;
+      }
 
-  </script>
-</body>
+      #radarCanvas {
+        border: 2px solid var(--senai-light-blue);
+        border-radius: 10px;
+        margin-bottom: 20px;
+      }
 
+      .toolbar {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        background-color: var(--senai-blue);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .btn:hover {
+        background-color: var(--senai-light-blue);
+      }
+
+      select.btn {
+        padding: 8px;
+      }
+
+      .status {
+        font-size: 0.9rem;
+      }
+
+      .status.online {
+        color: lime;
+      }
+
+      .status.offline {
+        color: red;
+      }
+
+      .light-mode {
+        --background-dark: #ffffff;
+        --text-light: #000000;
+      }
+
+      .range-option {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Radar Automatizado - SENAI</h1>
+
+    <div class="toolbar">
+      <button class="btn" onclick="toggleTheme()">Alternar Tema</button>
+
+      <label for="startRangeSelect" class="range-option">Faixa Início:</label>
+      <select id="startRangeSelect" class="btn" onchange="updateRange()">
+        <option selected value="0">0cm</option>
+        <option value="50">50cm</option>
+        <option value="100">100 cm</option>
+        <option value="150">150 cm</option>
+        <option value="200">200 cm</option>
+        <option value="250">250 cm</option>
+        <option value="300">300 cm</option>
+      </select>
+
+      <label for="endRangeSelect" class="range-option">Faixa Fim:</label>
+      <select id="endRangeSelect" class="btn" onchange="updateRange()">
+        <option value="50">50 cm</option>
+        <option value="100">100 cm</option>
+        <option value="150">150 cm</option>
+        <option value="200">200 cm</option>
+        <option value="250">250 cm</option>
+        <option selected value="300">300 cm</option>
+      </select>
+
+      <span class="status" id="statusLabel">🔄 Conectando...</span>
+    </div>
+
+    <canvas id="radarCanvas" width="1600" height="400"></canvas>
+
+    <script>
+      const canvas = document.getElementById("radarCanvas");
+      const ctx = canvas.getContext("2d");
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height;
+      const maxDistanceCm = 500;
+      const pixelsPerCm = 3; // ajuste conforme desejado
+      const maxRadius = maxDistanceCm * pixelsPerCm;
+
+      let startRange = 50;
+      let endRange = 100;
+
+      const linePath = [];
+      let currentDetection = null;
+      let pulseRadius = 5;
+      let pulseGrowing = true;
+
+      function updateRange() {
+        const startSelect = document.getElementById("startRangeSelect");
+        const endSelect = document.getElementById("endRangeSelect");
+
+        startRange = parseInt(startSelect.value);
+        endRange = parseInt(endSelect.value);
+
+        // Garante que a faixa de início não seja maior que a faixa de fim
+        if (startRange > endRange) {
+          endRange = startRange;
+          endSelect.value = startRange;
+        }
+      }
+
+      function polarToCartesian(angleDeg, distance) {
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const x = centerX + distance * Math.cos(angleRad);
+        const y = centerY - distance * Math.sin(angleRad);
+        return { x, y };
+      }
+
+      function drawRadar() {
+        const isLightMode = document.body.classList.contains("light-mode");
+
+        // Fundo do canvas
+        ctx.fillStyle = isLightMode ? "#000000" : "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Desenha as faixas de detecção
+        for (let r = 50; r <= maxRadius; r += 50) {
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, r, Math.PI, 0);
+          ctx.strokeStyle =
+            r >= startRange && r <= endRange
+              ? "lime"
+              : isLightMode
+              ? "#ffffff"
+              : "#0078d4";
+          ctx.lineWidth = r >= startRange && r <= endRange ? 3 : 1;
+          ctx.stroke();
+        }
+
+        // Linhas de 0 a 180 graus
+        for (let angle = 0; angle <= 180; angle += 15) {
+          const rad = (angle * Math.PI) / 180;
+          const x = centerX + maxRadius * Math.cos(rad);
+          const y = centerY - maxRadius * Math.sin(rad);
+          ctx.beginPath();
+          ctx.moveTo(centerX, centerY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+        }
+
+        const now = Date.now();
+        for (const point of linePath) {
+          const age = now - point.timestamp;
+          const maxAge = 5000;
+          const alpha = Math.max(0, 1 - age / maxAge);
+
+          ctx.fillStyle = isLightMode
+            ? `rgba(255, 255, 255, ${alpha})`
+            : `rgba(0, 0, 0, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+
+        if (currentDetection && currentDetection.distance <= maxRadius) {
+          ctx.strokeStyle = "lime";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(centerX, centerY);
+          ctx.lineTo(currentDetection.x, currentDetection.y);
+          ctx.stroke();
+        }
+
+        if (currentDetection) {
+          ctx.fillStyle = "whitesmoke";
+          ctx.beginPath();
+          ctx.arc(
+            currentDetection.x,
+            currentDetection.y,
+            pulseRadius,
+            0,
+            2 * Math.PI
+          );
+          ctx.fill();
+        }
+      }
+
+      function updatePulse() {
+        if (pulseGrowing) {
+          pulseRadius += 0.3;
+          if (pulseRadius >= 10) pulseGrowing = false;
+        } else {
+          pulseRadius -= 0.3;
+          if (pulseRadius <= 5) pulseGrowing = true;
+        }
+      }
+
+      function drawLoop() {
+        drawRadar();
+        updatePulse();
+        requestAnimationFrame(drawLoop);
+      }
+
+      function drawDetection(angle, distance) {
+        if (distance < startRange || distance > endRange) return;
+
+        const normalizedDistance = Math.min(distance, maxRadius * 1.2);
+        const point = polarToCartesian(angle, normalizedDistance);
+
+        const now = Date.now();
+        const existing = linePath.find((p) => p.angle === angle);
+        if (existing) {
+          existing.x = point.x;
+          existing.y = point.y;
+          existing.timestamp = now;
+          existing.distance = normalizedDistance;
+        } else {
+          linePath.push({
+            ...point,
+            angle,
+            timestamp: now,
+            distance: normalizedDistance,
+          });
+          linePath.sort((a, b) => a.angle - b.angle);
+        }
+
+        currentDetection = { ...point, distance: normalizedDistance };
+      }
+
+      async function fetchRadarData() {
+        try {
+          const response = await fetch("/medidas");
+          if (!response.ok) throw new Error("Erro");
+
+          const data = await response.json();
+          const angle = data.angle;
+          const distance = data.distance;
+
+          drawDetection(angle, distance);
+          updateStatus(true);
+        } catch (error) {
+          console.error("Erro ao buscar dados:", error);
+          updateStatus(false);
+        }
+      }
+
+      function updateStatus(connected) {
+        const label = document.getElementById("statusLabel");
+        if (connected) {
+          label.textContent = "🟢 Online";
+          label.className = "status online";
+        } else {
+          label.textContent = "🔴 Offline";
+          label.className = "status offline";
+        }
+      }
+
+      function toggleTheme() {
+        document.body.classList.toggle("light-mode");
+      }
+
+      setInterval(fetchRadarData, 50);
+      drawLoop();
+    </script>
+  </body>
 </html>
